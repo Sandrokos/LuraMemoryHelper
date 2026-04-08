@@ -74,14 +74,11 @@ jobs:
           fi
           ZIP_NAME="LuraMemoryHelper-${VERSION_CORE}.zip"
           TAG="${VERSION_CORE}"
-          PRERELEASE="false"
-          case "$VERSION_PATH" in */rc*|*rc*) PRERELEASE="true" ;; esac
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
           echo "VERSION_PATH=$VERSION_PATH" >> "$GITHUB_ENV"
           echo "VERSION_CORE=$VERSION_CORE" >> "$GITHUB_ENV"
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "PRERELEASE=$PRERELEASE" >> "$GITHUB_ENV"
 
       - name: Zip for GitHub Release
         if: startsWith(github.ref, 'refs/heads/release/') || github.event_name == 'workflow_dispatch'
@@ -95,13 +92,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          PRERELEASE_ARG=""
-          if [ "${PRERELEASE}" = "true" ]; then
-            PRERELEASE_ARG="--prerelease"
-          fi
           gh release create "$TAG" "${ZIP_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
             --title "${VERSION_CORE}" \
             --target "${GITHUB_SHA}" \
-            --generate-notes \
-            $PRERELEASE_ARG
+            --generate-notes
