@@ -1,10 +1,12 @@
 ## Interface: 120001
 ## Title: Lura Memory Helper
-## Notes: Raid memory helper for L'ura encounter
+## Notes: Lightweight L'ura memory helper; logic derived from Northern Sky Raid Tools — https://github.com/Reloe/NorthernSkyRaidTools
 ## Author: You
 ## Version: 1.0
 ## SavedVariables: LuraDB
 
 LuraMemoryHelper.lua
-UI.lua
+Core.lua
+RunesDisplay.lua
+Options.lua
 Sounds.lua
