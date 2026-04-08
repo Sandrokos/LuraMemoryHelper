@@ -1,6 +1,3 @@
-# Build: workflow_dispatch or push to release/** (e.g. release/v1.0/rc → tag v1.0-rc).
-# Releases are created only for release/** pushes.
-
 name: Package Addon
 
 on:
@@ -17,7 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build zip (Interface/AddOns/LuraMemoryHelper layout)
+      # Layout: release/LuraMemoryHelper/... → matches Interface/AddOns/LuraMemoryHelper
+      - name: Build addon folder
         run: |
           set -e
           mkdir -p "release/LuraMemoryHelper"
@@ -26,8 +24,9 @@ jobs:
           done
           if [ -d sounds ]; then cp -r sounds "release/LuraMemoryHelper/"; fi
           if [ -d Media ]; then cp -r Media "release/LuraMemoryHelper/"; fi
-          (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
 
+      # Upload the folder only; upload-artifact already zips once (uploading a .zip was double-zipping).
+      # Artifact extract: one zip → LuraMemoryHelper/...
       # Artifact names cannot contain / (e.g. branch release/v1.0).
       - name: Artifact name
         id: artifact
@@ -38,8 +37,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
-          path: LuraMemoryHelper.zip
+          path: release/LuraMemoryHelper
           if-no-files-found: error
+
+      - name: Zip for GitHub Release
+        if: startsWith(github.ref, 'refs/heads/release/')
+        run: (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/heads/release/')
