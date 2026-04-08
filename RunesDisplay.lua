@@ -8,12 +8,18 @@ local mythicRaidOrder = {
     CHAT_MSG_RAID_LEADER = { 1, 4 },
 }
 
+-- Normal (14) and Raid Finder / LFR (17) use three runes; instance chat instead of raid in LFR.
+function Lura:IsThreeRuneDifficulty()
+    local d = self.state.difficultyID or 0
+    return d == 14 or d == 17
+end
+
 function Lura:GetRuneDisplayCap()
     local difficulty = self.state.difficultyID or 0
-    if difficulty == 14 then -- normal
+    if difficulty == 14 or difficulty == 17 then -- Normal, LFR
         return 3
     end
-    if difficulty == 15 or difficulty == 16 then -- heroic/mythic
+    if difficulty == 15 or difficulty == 16 then -- Heroic / Mythic
         return 5
     end
     return 5
@@ -181,7 +187,7 @@ function Lura:DisplayRune(position, msg)
 
     local xOffset = { 50, 60, 0, -60, -50 }
     local yOffset = { 50, -25, -70, -25, 50 }
-    local isNormal = (self.state.difficultyID == 14)
+    local isNormal = self:IsThreeRuneDifficulty()
 
     if isNormal then
         -- Normal memory game only uses 3 calls: east, south, west.
@@ -295,6 +301,16 @@ function Lura:OnRuneChatEvent(eventName, msg)
     self:DisplayRune(position, msg)
 end
 
+function Lura:RegisterRuneChatEvents()
+    if not self.runesFrame then
+        return
+    end
+    self.runesFrame:RegisterEvent("CHAT_MSG_RAID")
+    self.runesFrame:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    self.runesFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT")
+    self.runesFrame:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER")
+end
+
 function Lura:SetupRunesDisplay(preview)
     self.previewMode = preview and true or false
     if not preview and not self.db.RunesDisplay then
@@ -304,8 +320,7 @@ function Lura:SetupRunesDisplay(preview)
 
     self:PositionRunesDisplay(false)
     self:ResetRunesDisplay()
-    self.runesFrame:RegisterEvent("CHAT_MSG_RAID")
-    self.runesFrame:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    self:RegisterRuneChatEvents()
     if preview then
         self.runesFrame:Show()
         self:ApplyPreviewRuneIcons()
@@ -339,8 +354,7 @@ function Lura:EnableMythicP4RunesDisplay()
         return
     end
     self:PositionRunesDisplay(true)
-    self.runesFrame:RegisterEvent("CHAT_MSG_RAID")
-    self.runesFrame:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    self:RegisterRuneChatEvents()
     self.runesFrame:Show()
 end
 

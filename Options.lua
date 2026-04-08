@@ -88,7 +88,7 @@ function Lura:CreateOptionsPanel()
     warningText:SetWidth(640)
     warningText:SetJustifyH("LEFT")
     warningText:SetText(
-        "To make memory runes display, replace files in \\World of Warcraft_retail_\\Interface\\ICONS " ..
+        "To make memory runes display, replace files in \\World of Warcraft\\_retail_\\Interface\\ICONS " ..
         "with the icon pack from " .. ICON_PACK_URL .. ". " ..
         "Restart WoW after replacing files."
     )

@@ -1,0 +1,58 @@
+# Build: workflow_dispatch or push to release/** (e.g. release/v1.0/rc → tag v1.0-rc).
+# Releases are created only for release/** pushes.
+
+name: Package Addon
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "release/**"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create release + tag on release branches
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip (Interface/AddOns/LuraMemoryHelper layout)
+        run: |
+          set -e
+          mkdir -p "release/LuraMemoryHelper"
+          for f in LuraMemoryHelper.toc *.lua; do
+            [ -f "$f" ] && cp "$f" "release/LuraMemoryHelper/"
+          done
+          if [ -d sounds ]; then cp -r sounds "release/LuraMemoryHelper/"; fi
+          if [ -d Media ]; then cp -r Media "release/LuraMemoryHelper/"; fi
+          (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LuraMemoryHelper-${{ github.ref_name }}
+          path: LuraMemoryHelper.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/heads/release/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          VERSION="${BRANCH#release/}"
+          # release/v1.0/rc → v1.0-rc; release/v1.2.3 → v1.2.3
+          TAG="${VERSION//\//-}"
+          if [ -z "$VERSION" ] || [ "$TAG" = "$BRANCH" ]; then
+            echo "Could not derive tag from branch: $BRANCH"
+            exit 1
+          fi
+          PRERELEASE=""
+          case "$TAG" in *rc*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$TAG" LuraMemoryHelper.zip \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "$TAG" \
+            --target "${GITHUB_SHA}" \
+            --generate-notes \
+            $PRERELEASE
