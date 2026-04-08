@@ -28,9 +28,16 @@ jobs:
           if [ -d Media ]; then cp -r Media "release/LuraMemoryHelper/"; fi
           (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
 
+      # Artifact names cannot contain / (e.g. branch release/v1.0).
+      - name: Artifact name
+        id: artifact
+        run: |
+          SAFE_REF="${GITHUB_REF_NAME//\//-}"
+          echo "name=LuraMemoryHelper-${SAFE_REF}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: LuraMemoryHelper-${{ github.ref_name }}
+          name: ${{ steps.artifact.outputs.name }}
           path: LuraMemoryHelper.zip
           if-no-files-found: error
 
