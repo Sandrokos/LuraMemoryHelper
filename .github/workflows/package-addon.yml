@@ -36,7 +36,18 @@ jobs:
 
       - name: Zip for GitHub Release
         if: startsWith(github.ref, 'refs/heads/release/')
-        run: (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          VERSION="${BRANCH#release/}"
+          BASE_TAG="${VERSION//\//-}"
+          if [ -z "$VERSION" ] || [ "$BASE_TAG" = "$BRANCH" ]; then
+            echo "Could not derive package version from branch: $BRANCH"
+            exit 1
+          fi
+          ZIP_NAME="LuraMemoryHelper-${BASE_TAG}.zip"
+          (cd release && zip -r "../${ZIP_NAME}" LuraMemoryHelper)
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/heads/release/')
@@ -56,7 +67,7 @@ jobs:
           TAG="${BASE_TAG}.${GITHUB_RUN_NUMBER}"
           PRERELEASE=""
           case "$BASE_TAG" in *rc*) PRERELEASE="--prerelease" ;; esac
-          gh release create "$TAG" LuraMemoryHelper.zip \
+          gh release create "$TAG" "${ZIP_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
             --title "$BASE_TAG (${GITHUB_RUN_NUMBER})" \
             --target "${GITHUB_SHA}" \
