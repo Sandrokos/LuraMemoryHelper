@@ -1,3 +1,6 @@
+# Build: workflow_dispatch or push to release/** (e.g. release/v1.0/rc → tag v1.0-rc).
+# Releases are created only for release/** pushes.
+
 name: Package Addon
 
 on:
@@ -25,18 +28,9 @@ jobs:
           if [ -d sounds ]; then cp -r sounds "release/LuraMemoryHelper/"; fi
           if [ -d Media ]; then cp -r Media "release/LuraMemoryHelper/"; fi
 
-      # Upload the folder only; upload-artifact already zips once (uploading a .zip was double-zipping).
-      # Artifact extract: one zip → LuraMemoryHelper/...
-      # Artifact names cannot contain / (e.g. branch release/v1.0).
-      - name: Artifact name
-        id: artifact
-        run: |
-          SAFE_REF="${GITHUB_REF_NAME//\//-}"
-          echo "name=LuraMemoryHelper-${SAFE_REF}" >> "$GITHUB_OUTPUT"
-
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.artifact.outputs.name }}
+          name: LuraMemoryHelper
           path: release/LuraMemoryHelper
           if-no-files-found: error
 
@@ -52,17 +46,19 @@ jobs:
           set -euo pipefail
           BRANCH="${GITHUB_REF#refs/heads/}"
           VERSION="${BRANCH#release/}"
-          # release/v1.0/rc → v1.0-rc; release/v1.2.3 → v1.2.3
-          TAG="${VERSION//\//-}"
-          if [ -z "$VERSION" ] || [ "$TAG" = "$BRANCH" ]; then
+          # release/v1.0/rc → base v1.0-rc
+          BASE_TAG="${VERSION//\//-}"
+          if [ -z "$VERSION" ] || [ "$BASE_TAG" = "$BRANCH" ]; then
             echo "Could not derive tag from branch: $BRANCH"
             exit 1
           fi
+          # Unique per run so each push creates a new release.
+          TAG="${BASE_TAG}.${GITHUB_RUN_NUMBER}"
           PRERELEASE=""
-          case "$TAG" in *rc*) PRERELEASE="--prerelease" ;; esac
+          case "$BASE_TAG" in *rc*) PRERELEASE="--prerelease" ;; esac
           gh release create "$TAG" LuraMemoryHelper.zip \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "$TAG" \
+            --title "$BASE_TAG (${GITHUB_RUN_NUMBER})" \
             --target "${GITHUB_SHA}" \
             --generate-notes \
             $PRERELEASE
