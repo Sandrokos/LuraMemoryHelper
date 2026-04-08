@@ -1,10 +1,15 @@
-# Build: workflow_dispatch or push to release/** (e.g. release/v1.0/rc → tag v1.0-rc).
-# Releases are created only for release/** pushes.
-
 name: Package Addon
 
 on:
   workflow_dispatch:
+    inputs:
+      source_branch:
+        description: "Branch to create release branch from (e.g. main)"
+        required: true
+        default: "main"
+      release_version:
+        description: "Release version (e.g. 1.0 or v1.0)"
+        required: true
   push:
     branches:
       - "release/**"
@@ -16,6 +21,26 @@ jobs:
       contents: write # create release + tag on release branches
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_branch || github.ref_name }}
+
+      - name: Create release branch from selected branch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_VERSION_INPUT: ${{ github.event.inputs.release_version }}
+        run: |
+          set -euo pipefail
+          VERSION="$RELEASE_VERSION_INPUT"
+          VERSION="${VERSION#v}"
+          if [ -z "$VERSION" ]; then
+            echo "release_version cannot be empty"
+            exit 1
+          fi
+          RELEASE_BRANCH="release/v${VERSION}/rc"
+          git checkout -B "$RELEASE_BRANCH"
+          git push -u origin "$RELEASE_BRANCH"
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> "$GITHUB_ENV"
 
       # Layout: release/LuraMemoryHelper/... → matches Interface/AddOns/LuraMemoryHelper
       - name: Build addon folder
@@ -34,31 +59,54 @@ jobs:
           path: release/LuraMemoryHelper
           if-no-files-found: error
 
+      - name: Prepare release metadata
+        if: startsWith(github.ref, 'refs/heads/release/') || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          BRANCH="${RELEASE_BRANCH:-${GITHUB_REF#refs/heads/}}" # release/v1.2/rc
+          case "$BRANCH" in
+            release/*) ;;
+            *)
+              echo "Not a release branch: $BRANCH"
+              exit 1
+              ;;
+          esac
+          VERSION_PATH="${BRANCH#release/}"        # v1.2/rc
+          VERSION_CORE="${VERSION_PATH%%/*}"       # v1.2
+          if [ -z "$VERSION_CORE" ] || [ "$VERSION_CORE" = "$BRANCH" ]; then
+            echo "Could not derive version from branch: $BRANCH"
+            exit 1
+          fi
+          ZIP_NAME="LuraMemoryHelper-${VERSION_CORE}.zip"
+          TAG="${VERSION_CORE}"
+          PRERELEASE="false"
+          case "$VERSION_PATH" in */rc*|*rc*) PRERELEASE="true" ;; esac
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          echo "VERSION_PATH=$VERSION_PATH" >> "$GITHUB_ENV"
+          echo "VERSION_CORE=$VERSION_CORE" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "PRERELEASE=$PRERELEASE" >> "$GITHUB_ENV"
+
       - name: Zip for GitHub Release
-        if: startsWith(github.ref, 'refs/heads/release/')
-        run: (cd release && zip -r ../LuraMemoryHelper.zip LuraMemoryHelper)
+        if: startsWith(github.ref, 'refs/heads/release/') || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          (cd release && zip -r "../${ZIP_NAME}" LuraMemoryHelper)
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/heads/release/')
+        if: startsWith(github.ref, 'refs/heads/release/') || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          VERSION="${BRANCH#release/}"
-          # release/v1.0/rc → base v1.0-rc
-          BASE_TAG="${VERSION//\//-}"
-          if [ -z "$VERSION" ] || [ "$BASE_TAG" = "$BRANCH" ]; then
-            echo "Could not derive tag from branch: $BRANCH"
-            exit 1
+          PRERELEASE_ARG=""
+          if [ "${PRERELEASE}" = "true" ]; then
+            PRERELEASE_ARG="--prerelease"
           fi
-          # Unique per run so each push creates a new release.
-          TAG="${BASE_TAG}.${GITHUB_RUN_NUMBER}"
-          PRERELEASE=""
-          case "$BASE_TAG" in *rc*) PRERELEASE="--prerelease" ;; esac
-          gh release create "$TAG" LuraMemoryHelper.zip \
+          gh release create "$TAG" "${ZIP_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "$BASE_TAG (${GITHUB_RUN_NUMBER})" \
+            --title "${VERSION_CORE}" \
             --target "${GITHUB_SHA}" \
             --generate-notes \
-            $PRERELEASE
+            $PRERELEASE_ARG
