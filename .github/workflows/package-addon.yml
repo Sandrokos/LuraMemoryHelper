@@ -3,10 +3,6 @@ name: Package Addon
 on:
   workflow_dispatch:
     inputs:
-      source_branch:
-        description: "Branch to create release branch from (e.g. main)"
-        required: true
-        default: "main"
       release_version:
         description: "Release version (e.g. 1.0 or v1.0)"
         required: true
@@ -23,7 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_branch || github.ref_name }}
 
       - name: Create release branch from selected branch
         if: github.event_name == 'workflow_dispatch'
